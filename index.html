@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Slidex</title>
+    <link href="https://unpkg.com/tailwindcss@^2/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <script src="https://unpkg.com/alpinejs" defer></script>
+</head>
+<body x-data="data()" class="bg-blue-100">
+    <link :href="`https://fonts.googleapis.com/css2?display=swap&${fontFamilies}`" rel="stylesheet">
+    <style x-html="fontClasses"></style>
+    <div class="min-h-screen mx-auto bg-white">
+        <div class="flex items-start h-screen">
+            <!-- List of all slides -->
+            <div class="bg-gray-600 h-full w-84 py-4 pr-4 pl-2 space-y-4 overflow-y-auto">
+                <template x-for="(slide, index) in slides">
+                    <div class="flex items-start">
+                        <div class="flex flex-col justify-around items-center h-36 p-1">
+                            <div class="mr-2 text-white" x-text="index + 1"></div>
+                            <button class="text-red-600" @click="deleteSlide(slide)" x-show="slides.length > 1">
+                                <span class="material-icons">delete</span>
+                            </button>
+                        </div>
+                        <div 
+                            class="rounded-lg mb-4 h-36 w-64 cursor-pointer bg-cover flex flex-col items-center justify-center"
+                            :class="(slide.id == currentSlide.id ? 'border-4 border-black ' : '') + (getFontClass(slide.font))"
+                            :style="`background-color: ${slide.bgColor}; background-image: url(${slide.bgImage}); color: ${slide.textColor};`"
+                            @click="changeSlide(slide)"
+                        >
+                            <h3 class="text-xl w-2/3 text-center truncate" x-html="slide.title"></h3>
+                            <h4 class="text-base mt-2 w-1/2 text-center truncate" x-html="slide.subtitle"></h4>
+                        </div>
+                    </div>
+                </template>
+            </div>
+            <!-- Currently selected slides -->
+            <div class="bg-gray-500 h-full w-5/6 flex flex-col">
+                <div class="p-8 flex-1" @contextmenu="showContextMenu($event)">
+                    <div 
+                        class="h-full rounded-lg bg-cover p-12 flex flex-col items-center justify-center text-center relative"
+                        :class="getFontClass(currentSlide.font)" 
+                        :style="`background-color: ${currentSlide.bgColor}; background-image: url(${currentSlide.bgImage}); color: ${currentSlide.textColor};`"
+                        x-ref="currentSlide"
+                        @fullscreenchange="fullScreenChange()"
+                    >
+                        <div class="absolute top-0 left-0 w-full h-full z-0 rounded-lg" :style="`background-color: ${currentSlide.bgColor}; opacity:${currentSlide.bgOpacity};`"></div>
+                        <div class="absolute top-0 left-0 w-full h-full flex flex-col items-center justify-center text-center z-10">
+                            <h1 class="text-7xl focus:outline-none" x-ref="title" x-html="currentSlide.title;" contenteditable="true" @blur="editTitle()"></h1>
+                            <h2 class="text-4xl mt-12 focus:outline-none" x-ref="subtitle" x-html="currentSlide.subtitle" contenteditable="true" @blur="editSubTitle()"></h2>                            
+                            <!-- Bullets -->
+                            <button class="bg-black hover:bg-gray-800 text-white h-8 w-8 flex items-center justify-center rounded absolute top-2 right-2" @click="showBulletForm = !showBulletForm" x-show="!isFullScreen">
+                                <span class="material-icons">format_list_bulleted</span>
+                            </button>
+                            <div class="bg-gray-700 text-white rounded absolute top-2 right-12 w-1/4 text-left" x-show="showBulletForm">
+                                <div class="text-left font-semibold mb-4 px-4 pt-4">Bullets</div>
+                                <div class="flex items-center mb-6 bg-gray-500 p-4">
+                                    <input type="text" class="w-full text-gray-900 px-2 py-1 rounded mb-2 focus:outline-none" x-model="newBullet.text" placeholder="Enter bullet text">
+                                    <button class="text-green-500 ml-2" @click="addBullet()">
+                                        <span class="material-icons">add_circle</span>
+                                    </button>
+                                </div>
+                                <template x-for="bullet in currentSlide.bullets">
+                                    <div class="flex items-center py-1 px-4">
+                                        <input type="text" class="w-full text-gray-900 px-2 py-1 rounded mb-2 focus:outline-none" x-model="bullet.text" placeholder="Enter bullet text">
+                                        <button class="text-red-500 ml-2" @click="deleteBullet(bullet)">
+                                            <span class="material-icons">delete</span>
+                                        </button>
+                                    </div>
+                                </template>
+                            </div>
+                            <template x-if="currentSlide.bullets.length > 0">
+                                <ul class="list-disc mt-8 text-2xl flex flex-col items-start space-y-1 tracking-wide">
+                                    <template x-for="bullet in currentSlide.bullets">
+                                        <li class="" x-text="bullet.text"></li>
+                                    </template>
+                                </ul>
+                            </template>                        
+                            <!-- Slide move buttons -->
+                            <div class="absolute -bottom-6 flex space-x-2" x-show="!isFullScreen">
+                                <button class="bg-gray-800 hover:bg-gray-900 text-white w-12 h-12 rounded-full flex items-center justify-center focus:outline-none" @click="prevSlide()" @keyup.up.window.stop="prevSlide()">
+                                    <span class="material-icons">chevron_left</span>
+                                </button>
+                                <button class="bg-gray-800 hover:bg-gray-900 text-white w-12 h-12 rounded-full flex items-center justify-center focus:outline-none" @click="nextSlide()" @keyup.down.window.stop="nextSlide()">
+                                    <span class="material-icons">chevron_right</span>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <!-- Slide Notes -->
+                <textarea class="bg-gray-200 h-36 p-4 focus:outline-none" placeholder="Notes" x-model="currentSlide.notes" x-show="!showImageSearch"></textarea>
+                <!-- Image Search Results -->
+                <div class="bg-gray-200 h-36 p-4 focus:outline-none" x-show="showImageSearch">
+                    <div class="flex items-center">
+                        <span>Search results for <span class="italic font-semibold" x-text="searchTerm"></span></span>
+                        <button class="ml-6 bg-red-500 text-white h-6 w-6 flex items-center justify-center rounded" @click="showImageSearch = false">
+                            <span class="material-icons">close</span>
+                        </button>
+                    </div>
+                    <div class="grid grid-cols-10 gap-2 mt-2">
+                        <template x-for="image in unsplashImages">
+                            <div class="cursor-pointer" @click="editBgImage(image)">
+                                <img :src="image.urls.thumb" class="rounded">
+                            </div>
+                        </template>
+                    </div>
+                </div>
+            </div>
+            <!-- Ribbon -->
+            <div class="w-16 h-full bg-gray-700 flex flex-col items-center pt-8">
+                <template x-for="action in ribbonActions">
+                    <button class="text-white mb-8" @click="callFunction(action.function)">
+                        <span class="material-icons" style="font-size: 28px;" x-text="action.icons"></span>
+                    </button>
+                </template>
+                <!-- Settings menu -->
+                <div class="bg-white w-96 rounded shadow absolute right-20 top-20 z-20" x-show="showSettings">
+                    <h1 class="text-2xl py-3 px-6">Presentation settings</h1>
+                    
+                    <div class="flex items-center justify-between border-b py-3 px-6">
+                        <label>Text Color</label>
+                        <input type="color" class="ml-4" x-model="presentation.textColor">
+                    </div>
+                    <div class="flex items-center justify-between border-b py-3 px-6">
+                        <label>Bckground Color</label>
+                        <input type="color" class="ml-4" x-model="presentation.bgColor">
+                    </div>
+                    <div class="flex items-center justify-between py-3 px-6">
+                        <label>Font</label>
+                        <select class="ml-4 border rounded px-4 py-2.5 focus:outline-none" x-model="presentation.font">
+                            <option value="">Select a font</option>
+                            <template x-for="font in fonts">
+                                <option :value="font.value" x-text="font.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Context Menu -->
+        <div class="bg-white border shadow rounded absolute z-20" :style="`top: ${contextMenu.top}px; left: ${contextMenu.left}px;`" x-show="contextMenu.visible" @click.outside="contextMenu.visible = false">
+            <div class="flex items-center justify-between border-b py-3 px-6 bg-gray-200 rounded-t">
+                <h1 class="text-2xl">Slide settings</h1>
+                <button class="bg-red-500 text-white flex items-center justify-center rounded" @click="contextMenu.visible = false">
+                    <span class="material-icons">close</span>
+                </button>
+            </div>
+            <div class="flex items-center justify-between border-b py-3 px-6">
+                <label>Text Color</label>
+                <input type="color" class="ml-4" x-model="currentSlide.textColor">
+            </div>
+            <div class="flex items-center justify-between border-b py-3 px-6">
+                <label>Bckground Color</label>
+                <input type="color" class="ml-4" x-model="currentSlide.bgColor">
+            </div>
+            <div class="flex items-center justify-between border-b py-3 px-6">
+                <label>Bckground Opacity</label>
+                <input type="range" class="ml-4" min="0.0" max="0.6" step="0.1" x-model="currentSlide.bgOpacity">
+            </div>
+            <div class="flex items-center justify-between border-b py-3 px-6 relative">
+                <label>Bckground Image</label>
+                <!-- <input type="text" class="ml-4 border-2 border-black py-2 px-4 rounded hidden focus:outline-none" x-model="currentSlide.bgImage"> -->
+                <input type="text" class="ml-4 border-2 border-black py-2 px-4 rounded focus:outline-none" x-model="searchTerm">
+                <button class="absolute right-8 top-6 text-gray-700 hover:text-gray-900" @click="searchUnsplash()">
+                    <span class="material-icons" style="font-size: 18px;">search</span>
+                </button>
+            </div>
+            <div class="flex items-center justify-between border-b py-3 px-6">
+                <label>Font</label>
+                <select class="ml-4 border rounded px-4 py-2.5 focus:outline-none" x-model="currentSlide.font">
+                    <option value="">Select a font</option>
+                    <template x-for="font in fonts">
+                        <option :value="font.value" x-text="font.name"></option>
+                    </template>
+                </select>
+            </div>
+        </div>
+    </div>
+    <script>
+        function data(){
+            return {
+
+                // Main Slides Functions
+                init(){
+                    this.sortFonts();
+                    this.fetchFonts();
+                    this.addSlide();
+                    this.setCurrentSlide();
+                },
+                currentSlideId: 0,
+                currentSlide: {},
+                slides: [],
+                presentation: {
+                    bgColor: "#000000",
+                    textColor: "#ffffff",
+                    font: "Lato",
+                },
+                addSlide(){
+                    let id = Math.floor( Math.random() * 10000 )
+                    this.slides.push( {
+                        id: id,
+                        bgImage: "",
+                        bgColor: this.presentation.bgColor,
+                        bgOpacity: 0.5,
+                        textColor: this.presentation.textColor,
+                        title: "Enter a title ",
+                        font: this.presentation.font,
+                        subtitle: "Enter a sub-title",
+                        bullets: [],
+                    } );
+                    this.currentSlideId = id;
+                    this.setCurrentSlide();
+                    this.showSettings = false;
+                },
+                getCurrentSlide(){
+                    return this.slides.filter( slide => slide.id == this.currentSlideId )[0];
+                },
+                setCurrentSlide(){
+                    this.currentSlide = this.getCurrentSlide();
+                },
+                deleteSlide(_slide){
+                    if(this.slides.length > 1){
+                        let index = this.slides.indexOf(_slide);
+                        this.currentSlideId = this.slides.length - index == 1 
+                            ? this.slides[ index - 1].id
+                            : this.slides[ index + 1].id
+                        this.setCurrentSlide();
+                        this.slides.splice(index, 1);
+                    }
+                },
+                changeSlide(_slide){
+                    this.currentSlideId = _slide.id;
+                    this.setCurrentSlide();
+                },
+                prevSlide(){
+                    let index = this.slides.indexOf(this.currentSlide);
+                    this.slides[index-1] && this.changeSlide( this.slides[ index - 1] );
+                },
+                nextSlide(){
+                    let index = this.slides.indexOf(this.currentSlide);
+                    this.slides[index+1] && this.changeSlide( this.slides[ index + 1] );
+                },
+
+                // Bullets
+                showBulletForm: false,
+                newBullet: {text: ""},
+                addBullet(){
+                    if(this.currentSlide.bullets.length >= 6){
+                        alert("Only 6 bullets allowed per slide");
+                        return
+                    }
+                    this.currentSlide.bullets.push(this.newBullet);
+                    this.newBullet = {text: ""};
+                },
+                deleteBullet(_bullet){
+                    let index = this.currentSlide.bullets.indexOf(_bullet);
+                    this.currentSlide.bullets.splice(index, 1)
+                },
+
+                // Edit functions
+                editTitle(){
+                    this.getCurrentSlide().title = this.$refs.title.innerHTML;
+                },
+                editSubTitle(){
+                    this.getCurrentSlide().subtitle = this.$refs.subtitle.innerHTML;
+                },
+                editBgImage(_unsplashImage){
+                    this.getCurrentSlide().bgImage = _unsplashImage.urls.regular;
+                },
+
+                // Context Menu
+                contextMenu: {
+                    visible: false,
+                    left: 0,
+                    top: 0,
+                },
+                showContextMenu(e){
+                    e.preventDefault();
+                    this.contextMenuVisible = true;
+                    this.contextMenu = {
+                        visible: true,
+                        left: e.clientX,
+                        top: e.clientY,
+                    }
+                },
+
+                // Unsplash Integretion
+                searchTerm: "cars",
+                showImageSearch: false,
+                unsplashImages: [],
+                unsplashApiKey: "TAD5AZIJxqj2CvW3K8y_4bLZtWXwSyOjdyxEtkbFEyI",
+                unsplashUrl: "https://api.unsplash.com/search/photos?orientation=landscape",
+                searchUnsplash: async function(){
+                    let url = this.unsplashUrl + "&client_id=" + this.unsplashApiKey + "&query=" + this.searchTerm;
+
+                    fetch(url)
+                        .then( response => response.json())
+                        .then( data => {
+                            this.unsplashImages = data.results;
+                            this.currentSlide.bgImage = data.results[0].urls.full
+                            this.showImageSearch = true;
+                        });
+                    
+                },
+
+                // Fonts
+                fonts: [
+                    { name: "Merienda", value: "Merienda" },
+                    { name: "Merriweather", value: "Merriweather" },
+                    { name: "Pcifico", value: "Pacifico" },
+                    { name: "Lobster", value: "Lobster" },
+                ],
+                fontFamilies: "",
+                fontClasses: ".font-merienda{font-family: 'Merienda';}",
+                fetchFonts(){
+                    this.fontFamilies = "family=" + this.fonts.map( font => font.value ).join("&family=");
+                    this.fontClasses = this.fonts.map( font => "." + this.getFontClass(font.value) + ` {font-family: '${font.value}';}` ).join("\n");
+                },
+                getFontClass(_name){
+                    return 'font-' + _name.toLowerCase();
+                },
+                sortFonts(){
+                    this.fonts.sort((a, b) => {
+                        if(a.name < b.name) {return -1;}
+                        if(a.name > b.name) {return 1;}
+                        return 0;
+                    })
+                },
+
+                // Ribbon Actions
+                ribbonActions: [
+                    { icons: "add_circle", title: "Add a slide", function: "addSlide"},
+                    { icons: "settings", title: "Settings", function: "toggleSettings"},
+                    { icons: "fullscreen", title: "Full screen", function: "fullScreen"},
+                ],
+                callFunction(_function){
+                    this[_function]();
+                },
+                showSettings: false,
+                toggleSettings(){
+                    this.showSettings = !this.showSettings
+                },
+                isFullScreen: false,
+                fullScreen(){
+                    this.isFullScreen = true;
+                    this.$refs.currentSlide.requestFullscreen();
+                },
+                fullScreenChange(){
+                    if(!document.fullscreenElement){
+                        this.isFullScreen = false;
+                    }
+                }
+            };
+        }
+    </script>
+</body>
+</html>
